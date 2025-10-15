@@ -1,3 +1,23 @@
+"""
+Main Model Class for Labor Market ABM
+
+This module defines the core Model class that orchestrates the entire
+labor market agent-based simulation:
+
+Key Features:
+- Initializes agents (firms and households)
+- Calibrates parameters to steady-state
+- Manages simulation time loop
+- Coordinates market processes (labor and goods markets)
+- Collects and stores simulation data
+- Handles firm defaults and refinancing
+
+The Model class is the main entry point for running simulations and
+analyzing labor market dynamics.
+
+Author: Labor Market ABM Project
+"""
+
 from agent_class import *
 from default_tools import *
 from calibration import calibrate_model
@@ -10,15 +30,100 @@ from sys import exit
 
 
 class Model:
+    """
+    Main labor market agent-based model class.
+    
+    This class encapsulates the entire simulation, including:
+    - Agent initialization (firms and households)
+    - Parameter calibration
+    - Time loop execution
+    - Data collection
+    - Market clearing processes
+    
+    Attributes
+    ----------
+    H : int
+        Number of households
+    F : int
+        Number of firms
+    T : int
+        Number of simulation periods
+    h_arr : np.ndarray
+        Array of household agents
+    f_arr : np.ndarray
+        Array of firm agents
+    emp_matrix : np.ndarray
+        Employment matrix (F x H)
+    t : int
+        Current time period
+    """
 
     def __init__(self,
-                 # exogenously chosen steady state parameters
-                 H = 200, F = 20, Ah = 1, u_r = 0.08, mu_r = 0.3, W_r = 1, gamma_nr = 0.33,
-                 m = 0.1, sigma = 0.5, delta = 1, alpha_2 = 0.25,
-                 # exogenous model parameters
-                 lambda_LM = 0.5, lambda_exp = 0.25, beta = 1, nu = 0.1, sigma_m = 0.001, sigma_w = 0.005,
-                 sigma_delta = 0.001, chi_C = 0.2, T = 500,
-                 tol = 1e-10, N_app = 4, nr_to_r = False, a = 100, min_w_par = 0.3 , f_max = 3):
+                 # Exogenously chosen steady state parameters
+                 H=200, F=20, Ah=1, u_r=0.08, mu_r=0.3, W_r=1, gamma_nr=0.33,
+                 m=0.1, sigma=0.5, delta=1, alpha_2=0.25,
+                 # Exogenous model parameters
+                 lambda_LM=0.5, lambda_exp=0.25, beta=1, nu=0.1, sigma_m=0.001, sigma_w=0.005,
+                 sigma_delta=0.001, chi_C=0.2, T=500,
+                 tol=1e-10, N_app=4, nr_to_r=False, a=100, min_w_par=0.3, f_max=3):
+        """
+        Initialize the labor market model.
+        
+        Parameters
+        ----------
+        H : int
+            Number of households
+        F : int
+            Number of firms
+        Ah : float
+            Initial household wealth
+        u_r : float
+            Target unemployment rate
+        mu_r : float
+            Routine labor productivity parameter
+        W_r : float
+            Routine wage (normalized)
+        gamma_nr : float
+            Share of non-routine workers
+        m : float
+            Markup rate
+        sigma : float
+            Elasticity of substitution
+        delta : float
+            Dividend payout rate
+        alpha_2 : float
+            Marginal propensity to consume from wealth
+        lambda_LM : float
+            Labor market friction parameter
+        lambda_exp : float
+            Expectation formation speed
+        beta : float
+            Experience premium parameter
+        nu : float
+            Inventory share parameter
+        sigma_m : float
+            Markup volatility
+        sigma_w : float
+            Wage volatility
+        sigma_delta : float
+            Dividend rate volatility
+        chi_C : float
+            Goods market search parameter
+        T : int
+            Number of simulation periods
+        tol : float
+            Numerical tolerance
+        N_app : int
+            Number of applications per household
+        nr_to_r : bool
+            Whether non-routine workers can take routine jobs
+        a : float
+            Total factor productivity
+        min_w_par : float
+            Minimum wage as fraction of median wage
+        f_max : int
+            Maximum time fired before becoming unemployed
+        """
 
 
         # exogenous parameters
@@ -129,6 +234,17 @@ class Model:
         self.wage_variance = np.zeros(T)
 
     def data_collector(self):
+        """
+        Collect and store simulation data for the current period.
+        
+        This method computes and stores key economic indicators:
+        - Unemployment rates (overall, routine, non-routine)
+        - Wages (mean, median, by worker type)
+        - GDP and output
+        - Firm activity metrics
+        - Skill mismatch indicators
+        - Income inequality measures
+        """
 
         ur_n = self.H_r - np.sum(self.emp_matrix[:, self.routine_arr])
         unr_n = self.H_nr - np.sum(self.emp_matrix[:, self.non_routine_arr])
@@ -189,6 +305,24 @@ class Model:
         self.nine_to_one[self.t] = nine_to_one
 
     def step_function(self):
+        """
+        Execute one simulation period.
+        
+        This is the main time-step function that coordinates all agent
+        decisions and market processes in the correct sequence:
+        
+        1. Process fired workers
+        2. Wage decisions
+        3. Household consumption decisions
+        4. Firm production decisions
+        5. Labor market matching (firing and hiring)
+        6. Goods market matching
+        7. Profit calculation and dividend distribution
+        8. Firm refinancing
+        9. Wage payments and unemployment updates
+        10. Data collection
+        11. Minimum wage adjustment
+        """
 
         if self.t % 50 == 0:
             print("Period: {}".format(self.t))
@@ -240,12 +374,17 @@ class Model:
             print("You should check 'default_firms()' and 'hh_refin_firms()'")
 
         # Debug check - only if household 66 exists
-        if len(self.h_arr) > 66 and self.h_arr[66].d_w==0:
+        if len(self.h_arr) > 66 and self.h_arr[66].d_w == 0:
             print(self.h_arr[66].d_w)
         self.t += 1
 
     def run(self):
-
+        """
+        Run the complete simulation.
+        
+        Initializes employment relationships and executes the step_function
+        for T periods, collecting data at each step.
+        """
         # initialize employment
         set_W_fs(self.f_arr, self.emp_matrix, self.nr_job_arr, self.h_arr)
 

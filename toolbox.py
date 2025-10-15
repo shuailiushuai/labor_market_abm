@@ -1,49 +1,139 @@
+"""
+Utility Functions for Labor Market ABM
+
+This module provides core utility functions for the labor market agent-based model:
+- Employment management functions
+- Wage and price update functions  
+- Expectation formation
+- Household decision functions
+- Firm decision functions
+- Probability and random sampling utilities
+
+Author: Labor Market ABM Project
+"""
+
 import numpy as np
 import numpy.random as rd
 
+
 def delete_from_old_r_job2(h, f_arr):
-    f_id = h.employer_id # get id of old employer
+    """
+    Remove a household from their old routine job.
+    
+    Parameters
+    ----------
+    h : Household
+        Household agent to be removed
+    f_arr : np.ndarray
+        Array of firm agents
+    """
+    f_id = h.employer_id  # Get ID of old employer
     emp_arr = f_arr[f_id].r_employees
-    h_i = np.where(emp_arr == h.id)[0][0] # get index in emp_arr
+    h_i = np.where(emp_arr == h.id)[0][0]  # Get index in employee array
     f_arr[f_id].r_employees = np.delete(emp_arr, h_i)
     f_arr[f_id].n_r_fired -= 1
 
+
 def delete_from_old_nr_job2(h, f_arr):
-    f_id = h.employer_id  # get id of old employer
+    """
+    Remove a household from their old non-routine job.
+    
+    Parameters
+    ----------
+    h : Household
+        Household agent to be removed
+    f_arr : np.ndarray
+        Array of firm agents
+    """
+    f_id = h.employer_id  # Get ID of old employer
     emp_arr = f_arr[f_id].nr_employees
-    h_i = np.where(emp_arr == h.id)[0][0]  # get index in emp_arr
+    h_i = np.where(emp_arr == h.id)[0][0]  # Get index in employee array
     f_arr[f_id].nr_employees = np.delete(emp_arr, h_i)
     f_arr[f_id].n_nr_fired -= 1
 
-# expectation function for a generic variable z
 
 def update_wr_wnr_bar(w_bar, mean_w, phi_w):
+    """
+    Update average wage using exponential smoothing.
+    
+    Parameters
+    ----------
+    w_bar : float
+        Current average wage
+    mean_w : float
+        Current period mean wage
+    phi_w : float
+        Smoothing parameter (0 to 1)
+        
+    Returns
+    -------
+    float
+        Updated average wage
+    """
     w_bar = phi_w*mean_w + (1-phi_w)*w_bar
     return w_bar
 
+
 def expectation(z, z_e, lambda_exp):
     """
-    this function returns the expected value for the
-    variable z for the current period.
-
-    :param z: previous period observation
-    :param z_e: previous period expectation
-    :param lambda_exp: adjustment parameter
-    :return: current period observation
+    Adaptive expectations formation for a generic variable.
+    
+    This function implements adaptive expectations where agents update
+    their expectations based on the previous period's forecast error.
+    
+    Parameters
+    ----------
+    z : float
+        Previous period actual observation
+    z_e : float
+        Previous period expectation
+    lambda_exp : float
+        Adjustment/learning parameter (0 to 1)
+        Higher values = faster adjustment to errors
+        
+    Returns
+    -------
+    float
+        Updated expectation for current period
     """
     error = z - z_e
     return z_e + lambda_exp*error
 
-# draw 1 with porbability P and 0 with prob. (1-P)
 
 def draw_one(P):
+    """
+    Draw binary outcome with given probability.
+    
+    Parameters
+    ----------
+    P : float
+        Probability of drawing 1 (between 0 and 1)
+        
+    Returns
+    -------
+    int
+        1 with probability P, 0 with probability (1-P)
+    """
     num = rd.uniform()
-    return 0*(num >= P) + 1*(num<P)
-
-# demand function
+    return 0*(num >= P) + 1*(num < P)
 
 
 def get_N_sub(chi, N):
+    """
+    Calculate subsample size for labor market search.
+    
+    Parameters
+    ----------
+    chi : float
+        Sampling fraction (0 to 1)
+    N : int
+        Total population size
+        
+    Returns
+    -------
+    int
+        Subsample size (at least 1 if chi*N > 0, otherwise 0)
+    """
     if chi * N >= 1:
         return int(chi*N)
     elif chi * N > 0:
@@ -53,99 +143,265 @@ def get_N_sub(chi, N):
 
 
 def init_emp_mat(F, H, u_r, h_arr):
-    N = np.int32(H*(1-u_r))
+    """
+    Initialize employment matrix with random initial employment.
+    
+    Parameters
+    ----------
+    F : int
+        Number of firms
+    H : int
+        Number of households
+    u_r : float
+        Initial unemployment rate (0 to 1)
+    h_arr : np.ndarray
+        Array of household agents
+        
+    Returns
+    -------
+    np.ndarray
+        Employment matrix of shape (F, H) where entry (i,j) = 1
+        if household j is employed by firm i, 0 otherwise
+    """
+    N = np.int32(H*(1-u_r))  # Number of initially employed
     emp_matrix = np.zeros((F, H))
     rand_f_ids = rd.permutation(N)
-    rand_h_ids = rd.choice(np.arange(H), N, replace = False)
+    rand_h_ids = rd.choice(np.arange(H), N, replace=False)
 
     for h_id, perm_num in zip(rand_h_ids, rand_f_ids):
-        f_id = perm_num % F
+        f_id = perm_num % F  # Distribute evenly across firms
         emp_matrix[f_id, h_id] = 1
-        h_arr[h_id].u[0] = 0
+        h_arr[h_id].u[0] = 0  # Mark as employed
     return emp_matrix
 
 
-# test expectation function
+# Test expectation function (for verification)
 z = 4
 z_e = 6
 lambda_exp = 0.5
 expectation(z, z_e, lambda_exp)
 
-#########################################################################################################
-###################### TOOLS FOR HOUSEHOLDS #############################################################
-#########################################################################################################
+
+###############################################################################
+# HOUSEHOLD FUNCTIONS
+###############################################################################
 
 def h_send_apps(app_mat, H, F, N_app):
-    # on axis 0 are applicant ids and on axis 1 are firm ids
+    """
+    Households send job applications to randomly selected firms.
+    
+    Parameters
+    ----------
+    app_mat : np.ndarray
+        Application matrix of shape (F, H) to be filled
+        Entry (i,j) = 1 if household j applies to firm i
+    H : int
+        Number of households
+    F : int
+        Number of firms
+    N_app : int
+        Number of applications each household sends
+    """
     f_ids = np.arange(F)
-    # draw N_app firm ids from f_ids without replacing
-    sub_f_ids = lambda : rd.choice(f_ids, N_app, replace=False)
+    # Function to draw N_app firm IDs without replacement
+    sub_f_ids = lambda: rd.choice(f_ids, N_app, replace=False)
 
     for i in range(H):
         app_mat[sub_f_ids(), i] = 1
 
+
 def get_unemployed(h, nr_job_arr, emp_mat, t):
-    emp_mat[:, h.id] = np.zeros(len(emp_mat[:, h.id]))
-    h.u[t] = 1
-    nr_job_arr[h.id] = False
-    h.w = 0
-    h.fired = False
-    h.fired_time = 0
+    """
+    Set household to unemployed status.
+    
+    Parameters
+    ----------
+    h : Household
+        Household agent becoming unemployed
+    nr_job_arr : np.ndarray
+        Array tracking non-routine job status
+    emp_mat : np.ndarray
+        Employment matrix (F x H)
+    t : int
+        Current time period
+    """
+    emp_mat[:, h.id] = np.zeros(len(emp_mat[:, h.id]))  # Clear employment
+    h.u[t] = 1  # Set unemployed
+    nr_job_arr[h.id] = False  # Clear job type
+    h.w = 0  # No wage when unemployed
+    h.fired = False  # Clear fired status
+    h.fired_time = 0  # Reset fired timer
 
 
 def count_unemployed_hs(h_arr, t):
+    """
+    Update unemployment status for all households.
+    
+    Parameters
+    ----------
+    h_arr : np.ndarray
+        Array of household agents
+    t : int
+        Current time period
+    """
     for h in h_arr:
-        unemp = (h.u[t-1] == 1)
-        h.u[t] = 1*unemp
+        unemp = (h.u[t-1] == 1)  # Check if was unemployed last period
+        h.u[t] = 1*unemp  # Carry forward unemployment status
 
 
 def Pr_LM(w_old, w_new, lambda_LM):
+    """
+    Calculate probability of accepting a job offer based on wage change.
+    
+    Uses an exponential function to model job acceptance probability.
+    Workers are more likely to accept jobs with higher wages.
+    
+    Parameters
+    ----------
+    w_old : float
+        Current/previous wage
+    w_new : float
+        Offered wage
+    lambda_LM : float
+        Labor market friction parameter
+        
+    Returns
+    -------
+    float
+        Probability of accepting job (0 to 1)
+    """
     diff = (w_old - w_new)/w_old
-    if diff < 0:
+    if diff < 0:  # New wage is higher
         return 1 - np.exp(lambda_LM*diff)
-    else:
+    else:  # New wage is lower or equal
         return 0
 
 
 def update_exp(h_arr, t, diff):
-
+    """
+    Update work experience for all households.
+    
+    Experience is calculated as the sum of employed periods
+    in the recent past (last 'diff' periods).
+    
+    Parameters
+    ----------
+    h_arr : np.ndarray
+        Array of household agents
+    t : int
+        Current time period
+    diff : int
+        Number of periods to look back for experience calculation
+    """
     if t < diff:
+        # Use all available history if t < diff
         for h in h_arr:
             h.exp = np.sum(1 - h.u[0: t + 1])
     else:
+        # Use last 'diff' periods
         for h in h_arr:
             h.exp = np.sum(1 - h.u[t - 3: t + 1])
 
 
 def update_w(h_arr, emp_mat, min_w):
-    emp_m = np.sum(emp_mat, axis=0) > 0
+    """
+    Enforce minimum wage for employed households.
+    
+    Parameters
+    ----------
+    h_arr : np.ndarray
+        Array of household agents
+    emp_mat : np.ndarray
+        Employment matrix (F x H)
+    min_w : float
+        Minimum wage level
+    """
+    emp_m = np.sum(emp_mat, axis=0) > 0  # Find employed households
     for h in h_arr[emp_m]:
-        h.w = np.maximum(h.w, min_w)
+        h.w = np.maximum(h.w, min_w)  # Apply minimum wage
 
 
 def update_d_w(h_arr, emp_mat, sigma_chi, min_w, t):
+    """
+    Update desired wages for all households.
+    
+    Employed households with job offers increase desired wages,
+    while unemployed/rejected households decrease desired wages.
+    Uses chi-squared distribution for stochastic variation.
+    
+    Parameters
+    ----------
+    h_arr : np.ndarray
+        Array of household agents
+    emp_mat : np.ndarray
+        Employment matrix (F x H)
+    sigma_chi : float
+        Wage adjustment volatility parameter
+    min_w : float
+        Minimum wage floor
+    t : int
+        Current time period
+    """
     emp_arr = np.sum(emp_mat, axis=0)
     for h in h_arr:
-
-        if emp_arr[h.id]==0 or h.job_offer[t-1]==0:
-            h.d_w = h.d_w*(1-rd.chisquare(1)*sigma_chi)
-        else:
+        # If unemployed or no job offer, decrease desired wage
+        if emp_arr[h.id] == 0 or h.job_offer[t-1] == 0:
+            h.d_w = h.d_w*(1 - rd.chisquare(1)*sigma_chi)
+        else:  # If employed with job offer, increase desired wage
             h.d_w = h.d_w * (1 + rd.chisquare(1) * sigma_chi)
+        # Enforce minimum and positive wage
         h.d_w = np.max([h.d_w, min_w, 0.1])
 
 
 def update_w_e(h_arr, lambda_exp):
+    """
+    Update wage expectations using adaptive expectations.
+    
+    Parameters
+    ----------
+    h_arr : np.ndarray
+        Array of household agents
+    lambda_exp : float
+        Expectation adjustment parameter
+    """
     for h in h_arr:
         h.w_e = expectation(h.w, h.w_e, lambda_exp)
 
 
 def update_Ah(h_arr):
+    """
+    Update household assets with income.
+    
+    Households receive wage income (adjusted by payment rate in case
+    of firm default) and dividend income.
+    
+    Parameters
+    ----------
+    h_arr : np.ndarray
+        Array of household agents
+    """
     for h in h_arr:
         h.A += (h.par * h.w + h.div)
 
 
 def update_d_c(h_arr, alpha_1, alpha_2):
+    """
+    Update desired consumption for all households.
+    
+    Consumption depends on current income (wages + dividends)
+    and accumulated wealth.
+    
+    Parameters
+    ----------
+    h_arr : np.ndarray
+        Array of household agents
+    alpha_1 : float
+        Marginal propensity to consume from income
+    alpha_2 : float
+        Marginal propensity to consume from wealth
+    """
     for h in h_arr:
+        # Consumption = alpha_1 * (income/price) + alpha_2 * (wealth/price)
         h.d_c = alpha_1*(np.maximum((h.w + h.div - h.refin), 0)/h.p_e) + alpha_2*(h.A/h.p_e)
 
 

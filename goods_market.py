@@ -1,8 +1,40 @@
+"""
+Goods Market Matching Module for Labor Market ABM
+
+This module implements the goods market where households purchase
+consumption goods from firms:
+- Random matching between buyers and sellers
+- Price-based firm selection (lowest price wins)
+- Inventory management
+- Budget constraints
+
+Author: Labor Market ABM Project
+"""
+
 import numpy as np
 import numpy.random as rd
 from toolbox import get_N_sub
 
+
 def gm_matching(f_arr, h_arr, chi, tol):
+    """
+    Match households with firms in the goods market.
+    
+    Households randomly sample a subset of firms and purchase goods
+    from the firm with the lowest price. The process continues until
+    either all demand is satisfied or all supply is exhausted.
+    
+    Parameters
+    ----------
+    f_arr : np.ndarray
+        Array of firm agents
+    h_arr : np.ndarray
+        Array of household agents
+    chi : float
+        Sampling fraction - determines how many firms each household observes
+    tol : float
+        Numerical tolerance for determining zero quantities
+    """
     h_indices = np.array([h.id for h in h_arr])
     f_indices = np.array([f.id for f in f_arr])
 

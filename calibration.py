@@ -1,12 +1,66 @@
+"""
+Model Calibration Module for Labor Market ABM
+
+This module calibrates the labor market model to match steady-state
+conditions and empirical targets:
+- Derives production function parameters
+- Calibrates wages for routine and non-routine workers
+- Determines firm-level parameters (costs, prices, profits)
+- Calibrates household consumption parameters
+
+The calibration ensures the model starts in an economically plausible state.
+
+Author: Labor Market ABM Project
+"""
+
 import numpy as np
 from sys import exit
 
 
-# H = 200, F = 20, u_r = 0.08, mu_r = 1, W_r = 1, gamma_nr = 0.33,
-#                  m = 0.1, sigma = 0.5, delta = 1, alpha_2 = 0.25
+# Default parameters: H = 200, F = 20, u_r = 0.08, mu_r = 1, W_r = 1, gamma_nr = 0.33,
+#                     m = 0.1, sigma = 0.5, delta = 1, alpha_2 = 0.25
 
-def calibrate_model(a = 100, H = 200, F = 20, Ah = 1, u_r = 0.08, mu_r = 0.3, W_r = 1, gamma_nr = 0.33, m = 0.1, sigma = 0.5, delta = 1, alpha_2 = 0.1):
-
+def calibrate_model(a=100, H=200, F=20, Ah=1, u_r=0.08, mu_r=0.3, W_r=1, 
+                   gamma_nr=0.33, m=0.1, sigma=0.5, delta=1, alpha_2=0.1):
+    """
+    Calibrate model parameters to achieve steady-state equilibrium.
+    
+    This function derives internally consistent model parameters given
+    a set of exogenous parameters and targets.
+    
+    Parameters
+    ----------
+    a : float
+        Total factor productivity
+    H : int
+        Number of households
+    F : int
+        Number of firms
+    Ah : float
+        Initial household wealth
+    u_r : float
+        Target unemployment rate
+    mu_r : float
+        Routine labor productivity parameter
+    W_r : float
+        Routine wage (normalized to 1)
+    gamma_nr : float
+        Share of non-routine workers
+    m : float
+        Markup rate
+    sigma : float
+        Elasticity of substitution between labor types
+    delta : float
+        Dividend payout rate
+    alpha_2 : float
+        Marginal propensity to consume from wealth
+        
+    Returns
+    -------
+    tuple
+        Calibrated parameters: (mu_nr, W_nr, Af, uc, p, y_f, pi_f, 
+                                div_h, div_f, c, alpha_1, Nr, Nnr)
+    """
     # get elasticity parameter
     rho = (sigma-1)/sigma
 
