@@ -1,38 +1,74 @@
+"""
+Hiring and Firing Module for Non-Routine Workers
+
+This module implements labor market mechanisms for non-routine jobs:
+- Worker applications for non-routine positions
+- Firm hiring decisions for non-routine workers
+- Firm firing decisions for non-routine workers
+- Wage negotiations and job matching
+
+Non-routine workers are those with higher skills who perform
+complex, non-standardized tasks that are less susceptible to automation.
+
+Author: Labor Market ABM Project
+"""
+
 from toolbox import *
 from hire_fire_routine import delete_from_old_r_job
 from sys import exit
 
 
-##################################################################################
-########### functions for the hiring, firing and application mechanism ###########
-##################################################################################
-################################# NON-ROUTINE ####################################
-##################################################################################
+###############################################################################
+# NON-ROUTINE WORKER HIRING AND FIRING
+###############################################################################
 
 
-
-################################# application#####################################
-##################################################################################
+###############################################################################
+# APPLICATION FUNCTIONS
+###############################################################################
 
 def firms_sort_nr_applications(f_arr):
+    """
+    Sort non-routine job applications by desired wage.
+    
+    Firms sort applications in ascending order of desired wages,
+    preferring candidates with lower wage demands.
+    
+    Parameters
+    ----------
+    f_arr : np.ndarray
+        Array of firm agents
+    """
     for f in f_arr:
         f.apps_nr = f.apps_nr.reshape(int(len(f.apps_nr) / 2), 2)
-        # firms sort for desired wages
-        wages = f.apps_nr[:,1]
+        # Firms sort by desired wages (ascending)
+        wages = f.apps_nr[:, 1]
         sorted_ids = np.argsort(wages)
         f.apps_nr = f.apps_nr[sorted_ids]
 
 
 def hs_send_nr_apps(f_arr, nr_h_arr, chi, H_nr, H_r, beta):
     """
-    Non-routine households send applications to firms that want to hire
-    workers for non-routine jobs. Only non-routine type households can
-    apply for this kind of jobs.
-    :param f_arr: List of all firm objects
-    :param nr_h_arr: List of non-routine households
-    :param chi: Size of observed subset of firms (between 0 and 1)
-    :param H_nr: Number of non-routine households
-    :param ids: Ids of firms that want to hire non routine workers
+    Non-routine households send applications for non-routine jobs.
+    
+    Only non-routine type households can apply for non-routine jobs,
+    as these require specialized skills. Desired wages are adjusted
+    by work experience using the beta parameter.
+    
+    Parameters
+    ----------
+    f_arr : np.ndarray
+        Array of firm agents
+    nr_h_arr : np.ndarray
+        Array of non-routine household agents
+    chi : float
+        Fraction of firms observed by each household (0 to 1)
+    H_nr : int
+        Number of non-routine households
+    H_r : int
+        Number of routine households
+    beta : float
+        Experience premium parameter (wage multiplier)
     """
     h_indices = np.array([h.id for h in nr_h_arr])
     f_ids = np.arange(len(f_arr))

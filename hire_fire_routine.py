@@ -1,37 +1,72 @@
+"""
+Hiring and Firing Module for Routine Workers
+
+This module implements labor market mechanisms for routine jobs:
+- Worker applications for routine positions
+- Firm hiring decisions for routine workers
+- Firm firing decisions for routine workers
+- Wage negotiations and job matching
+
+Routine workers are those with lower skills who perform
+standardized tasks that can potentially be automated.
+
+Author: Labor Market ABM Project
+"""
+
 from toolbox import *
 from sys import exit
 
 
-##################################################################################
-########### functions for the hiring, firing and application mechanism ###########
-##################################################################################
-################################### ROUTINE ######################################
-##################################################################################
+###############################################################################
+# ROUTINE WORKER HIRING AND FIRING
+###############################################################################
 
 
-
-################################ application #####################################
-##################################################################################
+###############################################################################
+# APPLICATION FUNCTIONS
+###############################################################################
 
 def firms_sort_r_applications(f_arr):
+    """
+    Sort routine job applications by desired wage.
+    
+    Firms sort applications in ascending order of desired wages,
+    preferring candidates with lower wage demands.
+    
+    Parameters
+    ----------
+    f_arr : np.ndarray
+        Array of firm agents
+    """
     for f in f_arr:
         f.apps_r = f.apps_r.reshape(int(len(f.apps_r) / 2), 2)
-        # firms sort for desired wages
-        wages = f.apps_r[:,1]
+        # Firms sort by desired wages (ascending)
+        wages = f.apps_r[:, 1]
         sorted_ids = np.argsort(wages)
         f.apps_r = f.apps_r[sorted_ids]
 
 
 def hs_send_r_apps(f_arr, h_arr, chi, H, beta):
     """
-    All households send applications to firms that want to hire
-    workers for routine jobs. Both, routine and non-routine type
-    households can apply for this kind of jobs.
-    :param f_arr: List of all firm objects
-    :param h_arr: List of all households
-    :param chi: Size of observed subset of firms (between 0 and 1)
-    :param H: Number of households
-    :param ids: Ids of firms that want to hire routine workers
+    Households send applications for routine jobs.
+    
+    Both routine and non-routine type households can apply for routine jobs.
+    However, non-routine workers who currently have non-routine jobs do not
+    apply (to avoid skill mismatch). Desired wages are adjusted by work
+    experience using the beta parameter.
+    
+    Parameters
+    ----------
+    f_arr : np.ndarray
+        Array of firm agents
+    h_arr : np.ndarray
+        Array of household agents
+    chi : float
+        Fraction of firms observed by each household (0 to 1)
+    H : int
+        Total number of households
+    beta : float
+        Experience premium parameter (wage multiplier)
     """
     h_indices = np.array([h.id for h in h_arr])
     f_ids = np.arange(len(f_arr))
@@ -50,25 +85,69 @@ def hs_send_r_apps(f_arr, h_arr, chi, H, beta):
     firms_sort_r_applications(f_arr[f_ids])
 
 
-
-
-################################## firing ####################################
-##############################################################################
+###############################################################################
+# FIRING FUNCTIONS
+###############################################################################
 
 
 def get_r_fired_ids(f, emp_ids):
+    """
+    Get household IDs of routine workers to be fired.
+    
+    Parameters
+    ----------
+    f : Firm
+        Firm agent
+    emp_ids : np.ndarray
+        Indices of employees in firm's routine worker array
+        
+    Returns
+    -------
+    np.ndarray
+        Household IDs of workers to be fired
+    """
     return f.r_employees[emp_ids].astype(int)
 
 
 def f_fires_r_workers(h_arr, fired_ids, f):
+    """
+    Mark routine workers as fired.
+    
+    Parameters
+    ----------
+    h_arr : np.ndarray
+        Array of household agents
+    fired_ids : np.ndarray
+        IDs of households being fired
+    f : Firm
+        Firm agent doing the firing
+    """
     for h in h_arr[fired_ids]:
         h.fired = True
         f.n_r_fired += 1
 
 
 def firms_fire_r_workers(v_mat, h_arr, f_arr, emp_mat, nr_job_arr):
-
-    f_mask = v_mat[:, 1] < 0
+    """
+    Fire routine workers from firms with negative vacancies.
+    
+    Firms with v_r < 0 need to fire workers. Firms fire the routine
+    workers with the highest wages first (last-in-first-out by wage).
+    
+    Parameters
+    ----------
+    v_mat : np.ndarray
+        Vacancy matrix with columns [firm_id, v_r, v_nr]
+    h_arr : np.ndarray
+        Array of household agents
+    f_arr : np.ndarray
+        Array of firm agents
+    emp_mat : np.ndarray
+        Employment matrix (F x H)
+    nr_job_arr : np.ndarray
+        Boolean array indicating non-routine jobs
+    """
+    f_mask = v_mat[:, 1] < 0  # Firms that need to fire routine workers
     val = np.sum(f_mask)
     h_inds = np.arange(len(h_arr))
     if val > 0:
@@ -76,26 +155,38 @@ def firms_fire_r_workers(v_mat, h_arr, f_arr, emp_mat, nr_job_arr):
         ids = fire_arr[:, 0]
         n_fire_arr = fire_arr[:, 1] * (-1)
         for i in range(len(ids)):
-            # get id of the firm, and number of workers it wants to fire
+            # Get firm ID and number of workers to fire
             f_id, n = int(ids[i]), int(n_fire_arr[i])
             emp_mask = emp_mat[f_id, :] > 0
-            # get employees as object
+            # Get routine employees
             emp_ids = h_inds[np.logical_and(emp_mask, np.invert(nr_job_arr))]
-            # look at wages of the employee
+            # Look at wages of the employees
             wages = np.array([h.w for h in h_arr[emp_ids]])
-            # take indices of employees with highest wages
-            mask = np.argsort(wages)[-n:] # indices in emp array
+            # Fire employees with highest wages
+            mask = np.argsort(wages)[-n:]
             fired_ids = emp_ids[mask]
             f_fires_r_workers(h_arr, fired_ids, f_arr[f_id])
 
 
-
-
-################################## hiring ####################################
-##############################################################################
+###############################################################################
+# HIRING FUNCTIONS
+###############################################################################
 
 
 def remove_r_apps_from_queues(f_arr, chosen_apps):
+    """
+    Remove accepted applicants from all firms' application queues.
+    
+    When a worker is hired, their applications to other firms
+    are withdrawn.
+    
+    Parameters
+    ----------
+    f_arr : np.ndarray
+        Array of firm agents
+    chosen_apps : list or np.ndarray
+        IDs of households that have been hired
+    """
     for f in f_arr:
         f_h_app_ids = f.apps_r[:, 0].astype(int)
         if len(f_h_app_ids) > 0:
